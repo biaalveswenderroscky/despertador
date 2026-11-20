@@ -1,66 +1,37 @@
 package com.despertador
 
-import android.Manifest
-import android.app.Activity
 import android.app.AlarmManager
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
-import android.app.TimePickerDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.media.AudioAttributes
-import android.media.AudioManager
-import android.media.MediaPlayer
-import android.media.RingtoneManager
-import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.os.IBinder
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.provider.Settings
-import android.text.InputType
-import android.view.Gravity
 import android.view.View
-import android.view.WindowManager
-import android.view.inputmethod.EditorInfo
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
-import java.util.Calendar
-import kotlin.random.Random
 
-private const val PREFS = "despertador"
-private const val CANAL = "alarme_despertador"
-private const val ACAO_TOCAR = "com.despertador.TOCAR"
-private const val ACERTOS_NECESSARIOS = 3
+const val PREFS = "despertador"
+const val CANAL = "alarme_despertador"
+const val ACAO_TOCAR = "com.despertador.TOCAR"
+const val ACERTOS_NECESSARIOS = 3
 
-private val FUNDO = Color.parseColor("#FFF0F5")      // fundo rosa clarinho
-private val TEXTO = Color.parseColor("#5B2A47")      // texto principal (ameixa)
-private val SUAVE = Color.parseColor("#A5527F")      // texto secundário
-private val ROSA = Color.parseColor("#D6336C")       // destaque: botão principal e títulos
-private val ROSA_CLARO = Color.parseColor("#FBCFE8") // botões secundários e bordas
-private val VERDE = Color.parseColor("#2E8B57")      // mensagem "Certo!"
-private val VERMELHO = Color.parseColor("#D62839")   // mensagem de erro
+val FUNDO = Color.parseColor("#FFF0F5")      // fundo rosa clarinho
+val TEXTO = Color.parseColor("#5B2A47")      // texto principal (ameixa)
+val SUAVE = Color.parseColor("#A5527F")      // texto secundário
+val ROSA = Color.parseColor("#D6336C")       // destaque: botão principal e títulos
+val ROSA_CLARO = Color.parseColor("#FBCFE8") // botões secundários e bordas
+val VERDE = Color.parseColor("#2E8B57")      // mensagem "Certo!"
+val VERMELHO = Color.parseColor("#D62839")   // mensagem de erro
 
 // ---------------------------------------------------------------
 // Utilidades para montar a tela
 // ---------------------------------------------------------------
-private fun Context.dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+fun Context.dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-private fun Context.texto(conteudo: String, tamanho: Float, cor: Int = TEXTO, negrito: Boolean = false): TextView {
+fun Context.texto(conteudo: String, tamanho: Float, cor: Int = TEXTO, negrito: Boolean = false): TextView {
     val t = TextView(this)
     t.text = conteudo
     t.textSize = tamanho
@@ -69,7 +40,7 @@ private fun Context.texto(conteudo: String, tamanho: Float, cor: Int = TEXTO, ne
     return t
 }
 
-private fun Context.botao(rotulo: String, destaque: Boolean): Button {
+fun Context.botao(rotulo: String, destaque: Boolean): Button {
     val b = Button(this)
     b.text = rotulo
     b.isAllCaps = false
@@ -86,7 +57,7 @@ private fun Context.botao(rotulo: String, destaque: Boolean): Button {
     return b
 }
 
-private fun LinearLayout.adicionar(v: View, topo: Int = 12) {
+fun LinearLayout.adicionar(v: View, topo: Int = 12) {
     val p = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,
         LinearLayout.LayoutParams.WRAP_CONTENT
@@ -148,79 +119,3 @@ class BootReceiver : BroadcastReceiver() {
         if (alvo > System.currentTimeMillis()) agendar(context, alvo)
     }
 }
-
-// ---------------------------------------------------------------
-// Serviço que toca o som e vibra até as contas serem resolvidas
-// ---------------------------------------------------------------
-class RingService : Service() {
-    companion object {
-        @Volatile
-        var tocando = false
-    }
-
-    private var player: MediaPlayer? = null
-    private var vibrador: Vibrator? = null
-
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        tocando = true
-
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val canal = NotificationChannel(CANAL, "Alarme", NotificationManager.IMPORTANCE_HIGH)
-        canal.setSound(null, null) // o som vem do MediaPlayer, não da notificação
-        nm.createNotificationChannel(canal)
-
-        val abrir = Intent(this, AlarmActivity::class.java)
-        abrir.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        val pi = PendingIntent.getActivity(
-            this, 3, abrir,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notificacao = Notification.Builder(this, CANAL)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("Acorda, Bibica! 🎀")
-            .setContentText("Toque aqui e resolva as contas para desligar o alarme.")
-            .setCategory(Notification.CATEGORY_ALARM)
-            .setOngoing(true)
-            .setContentIntent(pi)
-            .setFullScreenIntent(pi, true)
-            .build()
-
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(1, notificacao, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-        } else {
-            startForeground(1, notificacao)
-        }
-
-        iniciarSom()
-
-        try {
-            startActivity(abrir)
-        } catch (e: Exception) {
-            // se o Android bloquear, a notificação abre a tela quando você tocar nela
-        }
-        return START_STICKY
-    }
-
-    private fun iniciarSom() {
-        if (player != null) return
-
-        val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        audio.setStreamVolume(
-            AudioManager.STREAM_ALARM,
-            audio.getStreamMaxVolume(AudioManager.STREAM_ALARM),
-            0
-        )
-
-        try {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            val mp = MediaPlayer()
-            mp.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
