@@ -15,7 +15,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Despertador Matemático">
+        android:label="Despertador da Bibica">
 
         <activity
             android:name=".MainActivity"
